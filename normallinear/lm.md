@@ -381,7 +381,7 @@ Total
 <!--/html_preserve-->
 With the help of this table, we can easily compare the nested models from the most restricted one to the full one with General linear F test.
 
-First, we compare the model with only \(wt\) as explanatory variable to the null model in which no explanatory variable is included. Not surprisingly, the F test rejects the null model. Note that the F statistic resulting from comparing a model of interest to the null model is the F statistic given in the results of the *lm*.
+First, we compare the model with only \(wt\) as explanatory variable to the null model in which no explanatory variable is included. Not surprisingly, the F test rejects the null model. Note that the F statistic resulting from comparing a model of interest to the null model is the F statistic given in the output of the **lm** function.
 
 ``` r
 F <- (anova[1,1]/anova[1,2])/((anova[6,1]-anova[1,1])/(anova[6,2]-anova[1,2]))
@@ -389,29 +389,6 @@ pf(F,df1=anova[1,2],df2=anova[6,2]-anova[1,2],lower.tail = FALSE)
 ```
 
     ## [1] 6.309583e-12
-
-``` r
-summary(lm(Y~X[,c("wt")]))
-```
-
-    ## 
-    ## Call:
-    ## lm(formula = Y ~ X[, c("wt")])
-    ## 
-    ## Residuals:
-    ##       Min        1Q    Median        3Q       Max 
-    ## -0.210346 -0.085932 -0.006136  0.061335  0.308623 
-    ## 
-    ## Coefficients:
-    ##              Estimate Std. Error t value Pr(>|t|)    
-    ## (Intercept)   3.83191    0.08396   45.64  < 2e-16 ***
-    ## X[, c("wt")] -0.27178    0.02500  -10.87 6.31e-12 ***
-    ## ---
-    ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-    ## 
-    ## Residual standard error: 0.1362 on 30 degrees of freedom
-    ## Multiple R-squared:  0.7976, Adjusted R-squared:  0.7908 
-    ## F-statistic: 118.2 on 1 and 30 DF,  p-value: 6.31e-12
 
 We then compare the model with only \(wt\) to the one with \(wt\) and \(hp\). The F test rejects the simpler model with only \(wt\).
 
@@ -529,30 +506,6 @@ hp
 </tbody>
 </table>
 <!--/html_preserve-->
-``` r
-summary(lm(Y~X[,c("wt","hp")]))
-```
-
-    ## 
-    ## Call:
-    ## lm(formula = Y ~ X[, c("wt", "hp")])
-    ## 
-    ## Residuals:
-    ##      Min       1Q   Median       3Q      Max 
-    ## -0.18744 -0.07540 -0.02440  0.06244  0.28562 
-    ## 
-    ## Coefficients:
-    ##                        Estimate Std. Error t value Pr(>|t|)    
-    ## (Intercept)           3.8291030  0.0686807  55.752  < 2e-16 ***
-    ## X[, c("wt", "hp")]wt -0.2005368  0.0271810  -7.378 3.96e-08 ***
-    ## X[, c("wt", "hp")]hp -0.0015435  0.0003879  -3.979 0.000423 ***
-    ## ---
-    ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-    ## 
-    ## Residual standard error: 0.1114 on 29 degrees of freedom
-    ## Multiple R-squared:  0.8691, Adjusted R-squared:   0.86 
-    ## F-statistic: 96.23 on 2 and 29 DF,  p-value: 1.577e-13
-
 R-squared
 ---------
 
