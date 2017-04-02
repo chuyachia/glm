@@ -3,10 +3,10 @@ Normal Linear Model
 
 This document is about fitting a normal linear model. I will start with a full model, test the significance of each individual explanatory variable (Wald test) then compare the goodness of fit of the full model to some more restricted ones (General linear F test). I will also measure the coefficient of determination of the fitted model (R-squared) and examine the adequacy of the assumptions of the normal linear model by looking at the residuals. All of these tests can be carried out easily with **lm** or **glm** functions in R. However, to gain a better understanding of what is going on under the hood, I will compute these tests myself and compare the results with those given by R functions.
 
-Data
-----
+Fitting the data
+----------------
 
-The data that I am trying to fit here is the fuel consumption (miles per gallon) of different types of automobiles. The data comes from the **mtcars** data set in R which contains the fuel consumption and other characteristics of different types of automobiles. The core assumption of the normal linear model is the normal distribution of the response variable. We can verify this assumption by looking at the normal quantile-quantile plot of the fuel consumption data. As can be seen from the following plots, the distribution of the original data is skewed to the right. After log transformation, the data looks a lot more like a normal distribution. I therefore use the log transformed fuel consumption as response variable. It should be noted that, given the small size of the data set (32 observations), we shouldn't be expecting to see a beautiful bell curve anyway.
+The data that I am trying to fit here is the fuel consumption (miles per gallon) of different types of automobiles. The data comes from the **mtcars** data set in R which contains the fuel consumption and other characteristics of different types of automobiles.
 
 ``` r
 data("mtcars")
@@ -16,43 +16,13 @@ library(gridExtra)
 library(htmlTable)
 
 Y <- mtcars %>% select(mpg) %>% as.matrix()
-ggQQ <- function(vec,title="") 
-{
-  y <- quantile(vec[,1], c(0.25, 0.75))
-  x <- qnorm(c(0.25, 0.75))
-  slope <- diff(y)/diff(x)
-  int <- y[1L] - slope * x[1L]
-  p <- ggplot(vec,aes(sample=vec[,1])) +
-    stat_qq() +
-    geom_abline(slope = slope, intercept = int, color="red")+labs(title=title)
-  
-  return(p)
-}
-
-histy <- ggplot(data.frame(Y),aes(mpg))+
-  geom_histogram(bins=10)+
-  labs(title="Fuel Consumption")
-histy_t <-ggplot(data.frame(log(Y)),aes(mpg))+
-  geom_histogram(bins=10)+
-  labs(title="Log Fuel Consumption")
-qqy <-ggQQ(data.frame((Y-mean(Y))/sd(Y)))
-qqy_t <- ggQQ(data.frame((log(Y)-mean(log(Y)))/sd(log(Y))))
-
-
-grid.arrange(histy,histy_t,qqy,qqy_t,ncol=2)
 ```
 
-![](lm_files/figure-markdown_github/unnamed-chunk-1-1.png)
+To model fuel consumption (mpg), I start with a full model that includes the number of cylinders(cyl), the displacement (disp), the gross horsepower (hp), the rear axle ratio (drat), the weight of the automobiles (wt) and the 1/4 mile time (qsec) as explanatory variables. Whether it is from maximizing the likelihood of the data or minimizing the squared errors, we arrive at the same formula to compute the estimated parameters which is the pseudo inverse of \(X\).
 
 ``` r
-Y <- log(Y)
-```
-
-To model fuel consumption (mpg), I will start with a full model that includes the number of cylinders(cyl), the displacement (disp), the gross horsepower (hp), the rear axle ratio (drat), the weight of the automobiles (wt) and the 1/4 mile time (qsec) as explanatory variables. Whether it is from maximizing the likelihood of the data or minimizing the squared errors, we arrive at the same formula to compute the estimated parameters which is the pseudo inverse of \(X\).
-
-``` r
-X<- mtcars %>% mutate(incp=1,cyl_6=ifelse(cyl==6,1,0),cyl_8=ifelse(cyl==8,1,0)) %>% 
-  select(incp,cyl_6,cyl_8,disp,hp,drat,wt,qsec)%>% as.matrix()
+X<- mtcars %>%mutate(cyl=as.factor(cyl)) %>% select(cyl,disp,hp,drat,wt,qsec) 
+X <- model.matrix(~.,data=X)
 n <- nrow(X)
 lmfit <- function(x,y){
 df <- ncol(x)
@@ -123,16 +93,16 @@ p value
 Intercept
 </td>
 <td style="text-align: center;">
-3.34561
+26.59251
 </td>
 <td style="text-align: center;">
-0.59487
+13.09317
 </td>
 <td style="text-align: center;">
-5.62414
+2.03102
 </td>
 <td style="text-align: center;">
-1e-05
+0.05347
 </td>
 </tr>
 <tr>
@@ -140,16 +110,16 @@ Intercept
 cyl6
 </td>
 <td style="text-align: center;">
--0.06183
+-2.6406
 </td>
 <td style="text-align: center;">
-0.08475
+1.86528
 </td>
 <td style="text-align: center;">
--0.72956
+-1.41565
 </td>
 <td style="text-align: center;">
-0.47272
+0.16972
 </td>
 </tr>
 <tr>
@@ -157,16 +127,16 @@ cyl6
 cyl8
 </td>
 <td style="text-align: center;">
--0.06554
+-2.46488
 </td>
 <td style="text-align: center;">
-0.15088
+3.32097
 </td>
 <td style="text-align: center;">
--0.43441
+-0.74221
 </td>
 <td style="text-align: center;">
-0.66787
+0.46516
 </td>
 </tr>
 <tr>
@@ -174,16 +144,16 @@ cyl8
 disp
 </td>
 <td style="text-align: center;">
-3e-05
+0.00631
 </td>
 <td style="text-align: center;">
-0.00062
+0.01359
 </td>
 <td style="text-align: center;">
-0.04887
+0.46433
 </td>
 <td style="text-align: center;">
-0.96143
+0.6466
 </td>
 </tr>
 <tr>
@@ -191,16 +161,16 @@ disp
 hp
 </td>
 <td style="text-align: center;">
--0.00095
+-0.02259
 </td>
 <td style="text-align: center;">
-0.00073
+0.01604
 </td>
 <td style="text-align: center;">
--1.30641
+-1.40788
 </td>
 <td style="text-align: center;">
-0.20379
+0.17199
 </td>
 </tr>
 <tr>
@@ -208,16 +178,16 @@ hp
 drat
 </td>
 <td style="text-align: center;">
-0.03305
+1.14403
 </td>
 <td style="text-align: center;">
-0.0674
+1.48354
 </td>
 <td style="text-align: center;">
-0.49041
+0.77115
 </td>
 <td style="text-align: center;">
-0.6283
+0.44815
 </td>
 </tr>
 <tr>
@@ -225,16 +195,16 @@ drat
 wt
 </td>
 <td style="text-align: center;">
--0.19061
+-3.63707
 </td>
 <td style="text-align: center;">
-0.06153
+1.3544
 </td>
 <td style="text-align: center;">
--3.0976
+-2.68538
 </td>
 <td style="text-align: center;">
-0.00492
+0.01293
 </td>
 </tr>
 <tr>
@@ -242,16 +212,16 @@ wt
 qsec
 </td>
 <td style="border-bottom: 2px solid grey; text-align: center;">
-0.01575
+0.25763
 </td>
 <td style="border-bottom: 2px solid grey; text-align: center;">
-0.02416
+0.53178
 </td>
 <td style="border-bottom: 2px solid grey; text-align: center;">
-0.65203
+0.48447
 </td>
 <td style="border-bottom: 2px solid grey; text-align: center;">
-0.52058
+0.63245
 </td>
 </tr>
 </tbody>
@@ -272,13 +242,13 @@ In the following codes, I will summarize in an analysis of variance (ANOVA) tabl
 
 ``` r
 # Y~incp+wt
-m_wt <- lmfit(X[,c("incp","wt")],Y)
+m_wt <- lmfit(X[,c("(Intercept)","wt")],Y)
 #Y~incp+wt+hp
-m_wthp <- lmfit(X[,c("incp","wt","hp")],Y)
+m_wthp <- lmfit(X[,c("(Intercept)","wt","hp")],Y)
 #Y~incp+wt+hp+cyl
-m_wthpcyl <- lmfit(X[,c("incp","wt","hp","cyl_6","cyl_8")],Y)
+m_wthpcyl <- lmfit(X[,c("(Intercept)","wt","hp","cyl6","cyl8")],Y)
 # null model
-m_null <- lmfit(X[,c("incp")],Y)
+m_null <- lmfit(X[,c("(Intercept)")],Y)
 
 rss_vec <- c(m_null$rss,m_wt$rss,m_wthp$rss,m_wthpcyl$rss,m_full$rss) %>% diff() %>%abs()
 rss_vec <- c(rss_vec,m_null$rss-sum(rss_vec),m_null$rss) %>% round(5) 
@@ -315,7 +285,7 @@ Degree of freedom
 wt
 </td>
 <td style="text-align: center;">
-2.19228
+847.72525
 </td>
 <td style="text-align: center;">
 1
@@ -326,7 +296,7 @@ wt
 wt+hp
 </td>
 <td style="text-align: center;">
-0.19652
+83.27418
 </td>
 <td style="text-align: center;">
 1
@@ -337,7 +307,7 @@ wt+hp
 wt+hp+cyl
 </td>
 <td style="text-align: center;">
-0.03118
+34.27012
 </td>
 <td style="text-align: center;">
 2
@@ -348,7 +318,7 @@ wt+hp+cyl
 wt+hp+cyl+disp+drat+qsec
 </td>
 <td style="text-align: center;">
-0.00697
+4.88597
 </td>
 <td style="text-align: center;">
 3
@@ -359,7 +329,7 @@ wt+hp+cyl+disp+drat+qsec
 Residuals
 </td>
 <td style="text-align: center;">
-0.32179
+155.89166
 </td>
 <td style="text-align: center;">
 24
@@ -370,7 +340,7 @@ Residuals
 Total
 </td>
 <td style="border-bottom: 2px solid grey; text-align: center;">
-2.74874
+1126.04719
 </td>
 <td style="border-bottom: 2px solid grey; text-align: center;">
 31
@@ -388,7 +358,7 @@ F <- (anova[1,1]/anova[1,2])/((anova[6,1]-anova[1,1])/(anova[6,2]-anova[1,2]))
 pf(F,df1=anova[1,2],df2=anova[6,2]-anova[1,2],lower.tail = FALSE)
 ```
 
-    ## [1] 6.309583e-12
+    ## [1] 1.293959e-10
 
 We then compare the model with only \(wt\) to the one with \(wt\) and \(hp\). The F test rejects the simpler model with only \(wt\).
 
@@ -398,7 +368,7 @@ F <- (anova[2,1]/anova[2,2])/
 pf(F,df1=anova[2,2],df2=anova[6,2]-sum(anova[c(1:2),2]),lower.tail = FALSE)
 ```
 
-    ## [1] 0.0004233875
+    ## [1] 0.001451229
 
 When comparing the model with \(wt\) and \(hp\) to the one with \(wt\), \(hp\) and \(cyl\), the simpler model is no longer rejected by the F test this time. This result indicates that adding two additional dummy variables to take into account the number of cylinders does not improve significantly the explanatory power of the model. Therefore, we should stay with the simpler model with only \(wt\) and \(hp\).
 
@@ -408,13 +378,13 @@ F <- (anova[3,1]/anova[3,2])/
 pf(F,df1=anova[3,2],df2=anova[6,2]-sum(anova[c(1:3),2]),lower.tail = FALSE)
 ```
 
-    ## [1] 0.2942792
+    ## [1] 0.07364499
 
 We can, again, compute the significance of the individual parameters of the chosen model with Wald test.
 
 ``` r
 sigsq_ht <- c(m_wthp$rss/(n-m_wthp$df)) 
-varb <- sigsq_ht*solve(t(X[,c("incp","wt","hp")])%*%X[,c("incp","wt","hp")]) 
+varb <- sigsq_ht*solve(t(X[,c("(Intercept)","wt","hp")])%*%X[,c("(Intercept)","wt","hp")]) 
 t <- m_wthp$par/sqrt(diag(varb))
 pval <- sapply(abs(t),pt,df=n-m_wthp$df,lower.tail=FALSE)*2
 wald <- matrix(cbind(round(unname(m_wthp$par),5),
@@ -457,13 +427,13 @@ p value
 Intercept
 </td>
 <td style="text-align: center;">
-3.8291
+37.22727
 </td>
 <td style="text-align: center;">
-0.06868
+1.59879
 </td>
 <td style="text-align: center;">
-55.75222
+23.28469
 </td>
 <td style="text-align: center;">
 0
@@ -474,13 +444,13 @@ Intercept
 wt
 </td>
 <td style="text-align: center;">
--0.20054
+-3.87783
 </td>
 <td style="text-align: center;">
-0.02718
+0.63273
 </td>
 <td style="text-align: center;">
--7.37784
+-6.1287
 </td>
 <td style="text-align: center;">
 0
@@ -491,16 +461,16 @@ wt
 hp
 </td>
 <td style="border-bottom: 2px solid grey; text-align: center;">
--0.00154
+-0.03177
 </td>
 <td style="border-bottom: 2px solid grey; text-align: center;">
-0.00039
+0.00903
 </td>
 <td style="border-bottom: 2px solid grey; text-align: center;">
--3.97912
+-3.51871
 </td>
 <td style="border-bottom: 2px solid grey; text-align: center;">
-0.00042
+0.00145
 </td>
 </tr>
 </tbody>
@@ -520,15 +490,121 @@ R_sq;R_sq_adj
 ```
 
     ##           mpg
-    ## mpg 0.8690528
+    ## mpg 0.8267855
 
-    ##          mpg
-    ## mpg 0.860022
+    ##           mpg
+    ## mpg 0.8148396
 
 We can check all of the results obtained above with those given by the **lm** function.
 
 ``` r
 summary(lm(Y~X[,c("wt","hp")]))
+```
+
+    ## 
+    ## Call:
+    ## lm(formula = Y ~ X[, c("wt", "hp")])
+    ## 
+    ## Residuals:
+    ##    Min     1Q Median     3Q    Max 
+    ## -3.941 -1.600 -0.182  1.050  5.854 
+    ## 
+    ## Coefficients:
+    ##                      Estimate Std. Error t value Pr(>|t|)    
+    ## (Intercept)          37.22727    1.59879  23.285  < 2e-16 ***
+    ## X[, c("wt", "hp")]wt -3.87783    0.63273  -6.129 1.12e-06 ***
+    ## X[, c("wt", "hp")]hp -0.03177    0.00903  -3.519  0.00145 ** 
+    ## ---
+    ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+    ## 
+    ## Residual standard error: 2.593 on 29 degrees of freedom
+    ## Multiple R-squared:  0.8268, Adjusted R-squared:  0.8148 
+    ## F-statistic: 69.21 on 2 and 29 DF,  p-value: 9.109e-12
+
+Residuals
+---------
+
+The core assumption of the normal linear model is that the response variables come from a normal distribution. We can verify the assumption of normality with the normal quantile-quantile plot of the standardized residuals. Other plots that are used for model diagnostics include the residual plot and the Cook's distance plot. In the residual plot, the standardized residuals are plotted against the fitted values to verify the linearity assumption of the normal linear model. Cook's distance, is a measure of the influence that each observation has on the model. By convention, observations with Cook's distance greater than 1 call for caution.
+
+``` r
+# Plot function
+QQplot <- function(df,title="") 
+{
+  y <- quantile(df$residual, c(0.25, 0.75))
+  x <- qnorm(c(0.25, 0.75))
+  slope <- diff(y)/diff(x)
+  int <- y[1L] - slope * x[1L]
+  ggplot(df,aes(sample=residual)) +
+    stat_qq() +
+    geom_abline(slope = slope, intercept = int, color="red")+labs(title=title)
+}
+
+ResidualPlot <- function(df,title="")
+{
+  ggplot(df,aes(x=fitted,y=residual))+
+  geom_point()+geom_hline(yintercept=0,color="red")+
+  labs(x="Fitted values",y="Standardized residuals",title=title)
+}
+
+CookPlot <- function(df,title="")
+{
+  ggplot(df,aes(x=seq(1:nrow(df)),y=cook))+
+  geom_point(color=ifelse(df$cook>0.1,"red","black"))+
+  geom_text(aes(label=ifelse(df$cook>0.1,rownames(df),"")
+                ,hjust=1.1, vjust=1),size=3)+
+  labs(x="Order of observation",y="Cook's distance",title=title)
+}
+
+# Standardized residuals
+hat_m <-  X[,c("(Intercept)","wt","hp")]%*%
+  solve(t(X[,c("(Intercept)","wt","hp")])%*%X[,c("(Intercept)","wt","hp")])%*%
+  t(X[,c("(Intercept)","wt","hp")])
+res <- (Y-m_wthp$fitted)/(sqrt(sigsq_ht)*sqrt(rep(1,n)-diag(hat_m))) 
+residual_df <- data.frame(residual=unname(res),fitted=unname(m_wthp$fitted))
+# Normal QQ
+g1 <- QQplot(residual_df,"Normal Q-Q")
+# Residual vs Fitted
+g2<- ResidualPlot(residual_df,title="Residuals vs Fitted values")
+# Cook's distance
+cook <- (1/m_wthp$df)*(diag(hat_m)/(rep(1,n)-diag(hat_m)))*res^2 
+cook_df <- data.frame(cook=unname(cook))
+row.names(cook_df) <- row.names(Y)
+
+g3 <- CookPlot(cook_df,title="Cook's Distance")
+
+grid.arrange(g1,g2,g3,ncol=2)
+```
+
+![](lm_files/figure-markdown_github/unnamed-chunk-11-1.png)
+
+It can observed from the above normal QQ plot that the residuals are skewed towards the right. To correct for this problem, we can take a log transformation of the response variable. Below are the diagnostic plots of the model fitted with the log transformed response variable. Here, I am using directly the **lm** function to fit the model.
+
+``` r
+library(MASS)
+Y <- log(Y)
+fitted_trans <- lm(Y~X[,c("wt","hp")])
+residual_df_trans <- data.frame(residual=stdres(fitted_trans),
+                                fitted=fitted_trans$fitted.values)
+
+g4 <- QQplot(residual_df_trans,"Normal Q-Q")
+
+g5 <- ResidualPlot(residual_df_trans,title="Residuals vs Fitted values")
+
+cook_df_trans <- data.frame(cook=cooks.distance(fitted_trans))
+
+g6 <- CookPlot(cook_df_trans)
+
+grid.arrange(g4,g5,g6,ncol=2)
+```
+
+![](lm_files/figure-markdown_github/unnamed-chunk-12-1.png)
+
+The residuals of the corrected model follow approximately a normal distribution and show no apparent pattern when plotted against the fitted values. These are signs that the assumptions of the normal linear model are respected. Although some observations have a larger leverage over the model than others as shown by the red points on the third plot, their Cook's distance are not large enough to pose problems.
+
+The estimated parameters and the R-squared of the corrected model are shown below. Note by log transforming the response variable, we also increased the R-squared of the fitted model.
+
+``` r
+summary(fitted_trans)
 ```
 
     ## 
@@ -551,42 +627,9 @@ summary(lm(Y~X[,c("wt","hp")]))
     ## Multiple R-squared:  0.8691, Adjusted R-squared:   0.86 
     ## F-statistic: 96.23 on 2 and 29 DF,  p-value: 1.577e-13
 
-Residuals
----------
-
-To verify the adequacy of the normal linear model for fitting the data, I use three diagnostic plots here- normal quantile-quantile plot, standardized residuals vs fitted values plot and Cook's distance plot. The first two diagnostics are very self-explanatory. The third diagnostic, Cook's distance, is a measure of the influence that each observation has on the model. By convention, any observation with Cook's distance greater than 1 calls for caution.
-
-``` r
-hat_m <-  X[,c("incp","wt","hp")]%*%
-  solve(t(X[,c("incp","wt","hp")])%*%X[,c("incp","wt","hp")])%*%
-  t(X[,c("incp","wt","hp")])
-r_std <- (Y-m_wthp$fitted)/(sqrt(sigsq_ht)*sqrt(rep(1,n)-diag(hat_m))) %>% data.frame()
-r_std<- data.frame(r_std)
-cook <- (1/m_wthp$df)*(diag(hat_m)/(rep(1,n)-diag(hat_m)))*r_std^2 %>% data.frame
-#cook <- data.frame(cook)
- 
-QQ <- ggQQ(r_std,"Normal Q-Q")
-
-Fitted <-ggplot(r_std,aes(x=m_wthp$fitted,y=.))+
-  geom_point()+geom_hline(yintercept=0,color="red")+
-  labs(x="Fitted values",y="Standardized residuals",title="Residuals vs Fitted")
-
-Cookdis <- ggplot(cook,aes(x=seq(1:nrow(cook)),y=.))+
-  geom_point(color=ifelse(cook>0.1,"red","black"))+
-  geom_text(aes(label=ifelse(cook>0.1,rownames(Y),"")
-                ,hjust=1.1, vjust=1),size=3)+
-  labs(x="Order of observation",y="Cook's distance",title="Cook's Distance")
-
-grid.arrange(QQ,Fitted,Cookdis,ncol=2)
-```
-
-![](lm_files/figure-markdown_github/unnamed-chunk-11-1.png)
-
-We can observe from the plots above that the residuals follow approximately a normal distribution and do not show any apparent pattern when plotted against the fitted values. These are signs that the assumptions of the normal linear model are respected. Although some observations have a larger leverage over the model than others as shown by the red points on the third plot, their Cook's distance are not large enough to pose problems.
-
 Reference
 ---------
 
 -   Annette J. Dobson, Adrian G. Barnett (2008). An Introduction to Generalized Linear Models. Chapman & Hall/CRC texts in statistical science series.
 
--   Rodríguez, G. (2007). Lecture Notes on Generalized Linear Models. URL: <http://data.princeton.edu/wws509/notes/>
+-   Rodriguez, G. (2007). Lecture Notes on Generalized Linear Models. URL: <http://data.princeton.edu/wws509/notes/>
