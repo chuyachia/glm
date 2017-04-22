@@ -44,7 +44,7 @@ corrplot(M,method="number",mar=c(1,0,1,0),number.cex=0.75)
 Poisson model
 -------------
 
-We first begin to model the data with a Poisson model. As the Poisson model is in the family of Generalized linear models, we can estimate the parameters by calculating the score statistics and the information matrix. I will first start with a model that only includes the access to drinking water as the explanatory variable. The codes below compute the parameters and the associated standard errors. The results are then checked against those given by the **glm** function.
+We first begin with a Poisson model. As the Poisson model is in the family of Generalized linear models, the parameters can be estimated through the score statistics and the information matrix. I will first start with a model that includes only the access to drinking water as the explanatory variable. The codes below compute the parameters and the associated standard errors. The results are then checked against those given by the **glm** function.
 
 ``` r
 D <- model.matrix(~water,data=terr)
@@ -89,7 +89,7 @@ abs(sqrt(diag(solve(i)))-sqrt(diag(vcov(p_1))))< 1e-4
     ## (Intercept)       water 
     ##        TRUE        TRUE
 
-Note that while the access to drinking water appears to have a significant effect on the number of terror incidences, the model as a whole does not fit the data. This can be shown using Pearson's chi-squared statistic or the deviance statistic. We can calculate the two statistics by ourselves or we can use the Pearson's residuals and the deviance statistic already included in the fitted model given by **glm**. If the model fits the data well, we should expect the two statistics to follow a chi-squared distribution with the degree of freedom the number of observations minus the number of parameters. This is obvious not the case here as the probability of observing these two statistics from a chi-squared distribution with 32 degree of freedom (34 observations-2 paramters) is almost 0. In fact, since the chi-squared distribution has its mean equals the degree of freedom, we should expect to see these two statistics be around 32 (34 observations-2 paramters) if the model fits well.
+Note that while the access to drinking water appears to have a significant effect on the number of terror incidences, the model as a whole does not fit the data. The goodness of fit of the model can be checked with Pearson's chi-squared statistic or the deviance statistic. We can calculate the two statistics by ourselves or we can use the Pearson's residuals and the deviance statistic already included in the fitted model given by **glm**. If the model fits the data well, we should expect the two statistics to follow a chi-squared distribution with the degree of freedom the number of observations minus the number of parameters. This is obvious not the case here as the probability of observing these two statistics from a chi-squared distribution with 32 degree of freedom (34 observations-2 paramters) is almost 0. In fact, since the chi-squared distribution has its mean equals the degree of freedom, we should expect to see these two statistics be around 32 (34 observations-2 paramters) if the model fits well.
 
 ``` r
 ## Pearson's chi-squared statistic
@@ -126,7 +126,7 @@ c(deviance=unname(deviance),
     ##      deviance        pvalue 
     ##  8.691197e+02 5.527250e-162
 
-Although the lack of fit can be due to the explanatary variables included in the model, it is shown below that while adding more variables does improve the statistics, they remain far from the expected value even when we reach an "optimal" model according to the likelihood ratio test.
+Although the lack of fit can be due to the variables included in the model, it is shown below that while adding more variables does improve the statistics, they remain far from the expected value even when we reach an "optimal" model according to the likelihood ratio test.
 
 The codes below begins with the simplest model with only the intercept and add one explanatory variable at a time by choosing the one that makes the largest improvement to the log likelihood and stops when no more variable can bring a significant improvement. In the final model obtained, the explanatory variables included are all strongly significant individually. However, the deviance statistic (and Pearson's statistic) still remains far too large. This is suggesting that the Poisson model is probably not the best tool to use to model the data here.
 
@@ -201,7 +201,7 @@ Quasi-Poisson
 
 Poisson distribution assumes the mean to be equal to the variance. This assumption, however, does not always hold true in real-world data where the variance is often found to be a lot greater than the mean. This situation is called the overdispersion. If we release the equality assumption and assume instead the variance to be proportional to the mean at a scale parameter, we arrive at the quasi-Poisson model.
 
-The correction made to the variance in the quasi-Poisson model does not change the estimated parameters from the original Poisson model, however, it does influence the standard errors associated with the parameters. The scale parameter that links the mean and the variance in the quasi-Poisson model can be estimated by dividing Pearson's chi-squared statistic by its degree of freedom. We can then multiply the standard errors of the original model by the square root of the scale parameter to obtain the "corrected" standard errors. Since the standard errors become larger, the estimated parameters appear less significant in the quasi-Poisson model than in the original model. The scale parameter is estimated to be around 9 here. Hence, the standard errors in the quasi-Poisson model are about 3 times larger than that in the original Poisson model. This can be verified by comparing the output of **glm** below when the *family* argument is set to *quasipoisson* with that of the earlier one when the family argument was set to *poisson*.
+The correction made to the variance in the quasi-Poisson model does not change the estimated parameters from the original Poisson model, however, it does influence the standard errors associated with the parameters. The scale parameter that links the mean and the variance in the quasi-Poisson model can be estimated by dividing Pearson's chi-squared statistic by its degree of freedom. We then multiply the standard errors of the original model by the square root of the scale parameter to obtain the "corrected" standard errors. Since the standard errors become larger, the estimated parameters appear less significant in the quasi-Poisson model than in the original model. The scale parameter is estimated to be around 9 here. Hence, the standard errors in the quasi-Poisson model are about 3 times larger than that in the original Poisson model. This can be verified by comparing the output of **glm** below when the *family* argument is set to *quasipoisson* with that of the earlier one when the family argument was set to *poisson*.
 
 ``` r
 phi <- sum(residuals(p_fit,"pearson")^2)/df.residual(p_fit)
@@ -306,12 +306,12 @@ summary(qp_fit)
     ## 
     ## Number of Fisher Scoring iterations: 5
 
-In the final model, only three variables, *water*, *area* and *pashtun*, are included.
+In the final model, the three variables retained in the model are *water*, *area* and *pashtun*.
 
 Negative binomial model
 -----------------------
 
-An alternative way to deal with the problem of overdispersion is to assumed that the outcome, besides following a Poisson distribution, is also affected by an unobserved random effect. When the unobserved effect is assumed to follow a gamma distribution, we obtain a Negative binomial distribution for the outcome unconditioned on the unobserved effect. The Negative binomial model can be estimated by the **glm.nb** function in the **MASS** package. In the following codes, we perform again the model selection through the log likelihood ratio test.
+An alternative way to deal with the problem of overdispersion is to assume that the outcome, besides following a Poisson distribution, is also affected by an unobserved random effect. When the unobserved effect is assumed to follow a gamma distribution, we obtain a Negative binomial distribution for the outcome unconditioned on the unobserved effect. The Negative binomial model can be estimated by the **glm.nb** function in the **MASS** package. In the following codes, we perform again the model selection through the log likelihood ratio test.
 
 ``` r
 library(MASS)
@@ -414,7 +414,7 @@ exp(n_fit$coefficients[-1])
     ##  pashtun     area    water 
     ## 5.172250 1.020013 1.025538
 
-With the parameter given in the output of **glm.nb**, we can plot the density of the gamma distribution that characterizes the unobserved random effect. The value of the first, second and third quartile of the distribution are 0.6, 0.9 and 1.3. This implies that the number of terror incidences of a province that falls at the first quartile of this distribution will be 40% lower than the value expected from its characteristics. This number will be 10% lower if the province falls at the second quartile of the distribution and 30% higher if the province falls at the third quartile. Of course, we have no way of knowing which province falls at which quartile, else we could have just included this effect in the Poisson model.
+With the parameter given in the output of **glm.nb**, we can plot the density of the gamma distribution that characterizes the unobserved random effect. The value of the first, second and third quartile of the distribution are 0.6, 0.9 and 1.3. This implies that the number of terror incidences of a province that falls at the first quartile of this distribution will be 40% lower than the value expected from its characteristics. This number will be 10% lower if the province falls at the second quartile of the distribution and 30% higher if the province falls at the third quartile. Of course, we have no way of knowing which province falls at which quartile, else we could have just included this effect as an explanatory in a Poisson model.
 
 ``` r
 x <- seq(0, 3, 0.01)
