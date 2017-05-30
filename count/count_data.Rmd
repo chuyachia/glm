@@ -1,0 +1,272 @@
+---
+title: "Regression model for count data"
+output: github_document
+---
+In this document, I will use Poisson, Quasi-Poisson and Negative binomial regressions to model the number of terror incidences occurred in Afghanistan from 1994 to 2008. The data set used here can be found on the [website](http://www.stat.ufl.edu/~winner/datasets.html) of the Department of Statistics of the University of Florida. 
+
+## Data exploration
+The data set contains the aggregated number of terror incidences occurred in 34 provinces of Afghanistan from 1994 to 2008 along with some characteristics of these provinces. The characteristics include the average opium cultivation in hectares (*opium*), the population in thousands (*population*), the area in thousand square kilometers (*area*), the percentage of mountainous area (*mountain*), the literacy rate (*literacy*), the percentage of the population living below the minimal calory intake level (*belowcalories*),the percentage of the population with access to drinking water (*water*), the percentage of all-season roads (*road*), the mortality rate of children under five (*under5mort*),the number of foreign troops present (*foreigntroop*) and whether the province is Pashtun majority (*pashtun*). The data set also contains the aggregated number of casualties caused by the terror incidences, which is not the subject of the models here.
+
+The number of terror incidences occurred in each of the 34 provinces are presented in the following graph. Kandahar is the province where there have been the most terror incidences, followed by Kabul and Helmand. 
+```{r,warning=FALSE,message=FALSE}
+library(dplyr)
+library(ggplot2)
+library(corrplot)
+
+terr <- read.table("http://www.stat.ufl.edu/~winner/data/afghan_terror.dat")
+names(terr) <- c("province","incidence","casualty","opium","population",
+                 "area","mountain","literacy","water","belowcalories",
+                 "road","under5mort","pashtun","foreigntroop")
+
+
+ggplot(terr,aes(x=reorder(province,incidence),y=incidence))+
+  geom_bar(stat = "identity")+
+  coord_flip()+
+  labs(title="Terror incidences in Afghanistan : 1994-2008",
+       y="Number of incidences",
+       x="")
+```
+
+In the below correlation plot, the access to drinking water, the percentage of all-season roads, the mortality rate of children under 5 and Pashtun majority appear to be the factors the most correlated with the number of terror incidences. While correlation does not imply causation, from the point of view of fitting a regression model, these variables make good candidates to be included in the model.
+
+```{r}
+M <- cor(subset(terr,select=-province))
+
+corrplot(M,method="number",mar=c(1,0,1,0),number.cex=0.75)
+```
+
+## Poisson model
+We first begin with a Poisson model. As the Poisson model is in the family of Generalized linear models, the parameters can be estimated through the score statistics and the information matrix. I will first start with a model that includes only the access to drinking water as the explanatory variable. The codes below compute the parameters and the associated standard errors. The results are then checked against those given by the **glm** function.
+
+```{r}
+D <- model.matrix(~water,data=terr)
+y <- terr %>% select(incidence) %>% as.matrix()
+b <- rep(0.0001,2)
+change <- 1
+while (change > 10^-6){
+meanr <- exp(D %*% b)
+# score
+u <- t(D)%*%(y-meanr)
+# information
+w <- matrix(0,nrow=nrow(D),ncol=nrow(D))
+diag(w)<- meanr
+i <- t(D)%*%w %*% D
+# update
+b_n <- b+solve(i)%*%u
+change <- sqrt(sum((b_n-b)^2))
+b <- b_n
+}
+p_1 <- glm(y~D-1,family=poisson)
+data.frame(estimate=unname(b),se=sqrt(diag(solve(i))),
+           zscore=unname(b/sqrt(diag(solve(i)))),
+           pvalue=pnorm(unname(b/sqrt(diag(solve(i)))),lower.tail=FALSE)*2)
+
+abs(b-p_1$coefficients)< 1e-4 
+abs(sqrt(diag(solve(i)))-sqrt(diag(vcov(p_1))))< 1e-4 
+
+```
+
+Note that while the access to drinking water appears to have a significant effect on the number of terror incidences, the model as a whole does not fit the data. The goodness of fit of the model can be checked with Pearson's chi-squared statistic or the deviance statistic. We can calculate the two statistics by ourselves or we can use the Pearson's residuals and the deviance statistic already included in the fitted model given by **glm**. If the model fits the data well, we should expect the two statistics to follow a chi-squared distribution with the degree of freedom the number of observations minus the number of parameters. This is obvious not the case here as the probability of observing these two statistics from a chi-squared distribution with 32 degree of freedom (34 observations-2 paramters) is almost 0. In fact, since the chi-squared distribution has its mean equals the degree of freedom, we should expect to see these two statistics be around 32 (34 observations-2 paramters) if the model fits well.
+```{r}
+## Pearson's chi-squared statistic
+meanr <- exp(D %*% b)
+chi_sq <- colSums((y-meanr)^2/meanr)
+abs(chi_sq-sum(residuals(p_1, type = "pearson")^2)) < 1e-4
+c(pearson=unname(chi_sq),
+  p_value=unname(pchisq(chi_sq,df=nrow(D)-ncol(D),lower.tail = FALSE)))
+
+## Deviance statistic
+deviance <- 2*colSums(y*log(y/meanr)-(y-meanr))
+abs(deviance-deviance(p_1))< 1e-4 
+c(deviance=unname(deviance),
+  pvalue=unname(pchisq(deviance,df=nrow(D)-ncol(D),lower.tail = FALSE)))
+```
+Although the lack of fit can be due to the variables included in the model, it is shown below that while adding more variables does improve the statistics, they remain far from the expected value even when we reach an "optimal" model according to the likelihood ratio test. 
+
+The codes below begins with the simplest model with only the intercept and add one explanatory variable at a time by choosing the one that makes the largest improvement to the log likelihood and stops when no more variable can bring a significant improvement. In the final model obtained, the explanatory variables included are all strongly significant individually. However, the deviance statistic (and Pearson's statistic) still remains far too large. This is suggesting that the Poisson model is probably not the best tool to use to model the data here.
+
+```{r}
+## Poisson
+varlist <- names(terr)[!names(terr) %in%c("incidence","casualty","province")]
+p_0 <- glm(incidence~1,data=terr,family=poisson)
+prob <- 0
+n_var <- 0
+
+while (prob <0.05){
+  prob<- 1
+  n_var <- n_var+1
+  for (i in 1:length(varlist))
+  {
+    if (!varlist[i]%in%
+        names(get(sprintf("p_%d",n_var-1))$coefficients))
+    {
+      p_temp <- update(get(sprintf("p_%d",n_var-1)),paste(" ~.+",varlist[i]))
+      anov <-anova(p_temp,test="Chisq")
+      prob_temp <-anov$`Pr(>Chi)`[n_var+1]
+      if (prob_temp < prob && prob_temp<0.05)
+      {
+        assign(sprintf("p_%d",n_var),p_temp)
+        prob <- prob_temp
+      }
+    }
+  }
+}
+
+p_fit <- get(ifelse(exists(sprintf("p_%d",n_var)),
+                    sprintf("p_%d",n_var),
+                    sprintf("p_%d",n_var-1)))
+
+summary(p_fit)
+```
+
+## Quasi-Poisson
+Poisson distribution assumes the mean to be equal to the variance. This assumption, however, does not always hold true in real-world data where the variance is often found to be a lot greater than the mean. This situation is called the overdispersion. If we release the equality assumption and assume instead the variance to be proportional to the mean at a scale parameter, we arrive at the quasi-Poisson model. 
+
+The correction made to the variance in the quasi-Poisson model does not change the estimated parameters from the original Poisson model, however, it does influence the standard errors associated with the parameters. The scale parameter that links the mean and the variance in the quasi-Poisson model can be estimated by dividing Pearson's chi-squared statistic by its degree of freedom. We then multiply the standard errors of the original model by the square root of the scale parameter to obtain the "corrected" standard errors. Since the standard errors become larger, the estimated parameters appear less significant in the quasi-Poisson model than in the original model. The scale parameter is estimated to be around 9 here. Hence, the standard errors in the quasi-Poisson model are about 3 times larger than that in the original Poisson model. This can be verified by comparing the output of **glm** below when the *family* argument is set to *quasipoisson* with that of the earlier one when the family argument was set to *poisson*.
+
+```{r}
+phi <- sum(residuals(p_fit,"pearson")^2)/df.residual(p_fit)
+phi;sqrt(phi)
+
+qp_fit <- glm(formula(p_fit),family=quasipoisson,data=terr)
+summary(qp_fit)
+
+```
+
+The model selection through the log likelihood ratio as we did before with the Poisson model is no longer suitable here since the quasi-Poisson model is estimated through a quasi-likelihood. Instead, we can use the General linear F-test so that the scale parameter will appear in both the numerator and the denominator and cancel each other out. 
+
+```{r}
+qp_0 <- glm(incidence~1,data=terr,family=quasipoisson)
+prob <- 0
+n_var <- 0
+
+while (prob <0.05){
+  prob<- 1
+  n_var <- n_var+1
+  for (i in 1:length(varlist))
+  {
+    if (!varlist[i]%in% 
+        names(get(sprintf("qp_%d",n_var-1))$coefficients))
+    {
+      qp_temp <- update(get(sprintf("qp_%d",n_var-1)),paste(" ~.+",varlist[i]))
+      anov <-anova(qp_temp,test="F")
+      prob_temp <-anov$`Pr(>F)`[n_var+1]
+      if (prob_temp < prob && prob_temp<0.05)
+      {
+        assign(sprintf("qp_%d",n_var),qp_temp)
+        prob <- prob_temp
+      }
+    }
+  }
+}
+
+qp_fit <- get(ifelse(exists(sprintf("qp_%d",n_var)),
+                    sprintf("qp_%d",n_var),
+                    sprintf("qp_%d",n_var-1)))
+summary(qp_fit)
+```
+
+In the final model, the three variables retained in the model are *water*, *area* and *pashtun*.
+
+## Negative binomial model
+An alternative way to deal with the problem of overdispersion is to assume that the outcome, besides following a Poisson distribution, is also affected by an unobserved random effect. When the unobserved effect is assumed to follow a gamma distribution, we obtain a Negative binomial distribution for the outcome unconditioned on the unobserved effect. The Negative binomial model can be estimated by the **glm.nb** function in the **MASS** package. In the following codes, we perform again the model selection through the log likelihood ratio test.
+
+```{r,warning=FALSE,message=FALSE}
+library(MASS)
+n_0 <- glm.nb(incidence~1,data=terr)
+prob <- 0
+n_var <- 0
+while (prob <0.05){
+prob <- 1
+n_var <- n_var+1
+for (i in 1:length(varlist))
+{
+if (!varlist[i]%in%
+        names(get(sprintf("n_%d",n_var-1))$coefficients))
+  {
+  n_temp <- update(get(sprintf("n_%d",n_var-1)),paste(" ~.+",varlist[i]))
+  anov <-anova(get(sprintf("n_%d",n_var-1)),n_temp)
+  prob_temp <- anov$`Pr(Chi)`[2]
+  if (prob_temp < prob && prob_temp<0.05)
+  {
+    assign(sprintf("n_%d",n_var),n_temp)
+    prob <- prob_temp
+  }
+  }
+}
+}
+
+n_fit <- get(ifelse(exists(sprintf("n_%d",n_var)),
+                    sprintf("n_%d",n_var),
+                    sprintf("n_%d",n_var-1)))
+summary(n_fit)
+c(deviance=deviance(n_fit),pvalue=pchisq(deviance(n_fit),df=n_fit$df.residual,lower.tail=FALSE))
+```
+
+The same three variables, *water*, *area* and *pashtun*, are retained in the final model of the negative binomial regression as in the quasi-Poisson regression. The deviance statistic of the negative binomial model is about 36, which is a reasonable value given a degree of freedom of 30. 
+
+## Result
+If we look back to the correlation plot presented earlier, we can notice that two of the variables that appeared to be the most correlated with the number of terror incidences in the correlation plot, all-season roads and the mortality rate of children under five, are not retained in the final model. This can be explained by the fact that the two variables are also highly correlated with the access to drinking water, whose inclusion in the model alone suffices to capture the effects of the two variables. On the other hand, the area of the province who did not appear to be particularly correlated with the number of terror incidences ends up capturing some effects left out by the other variables and is retained in the final model.
+
+It can be seen below that the estimated parameters and the associated standard errors are not very different in the quasi-Poisson model and the Negative binomial model.
+
+```{r}
+data.frame(estimate_quasipois=qp_fit$coefficients,
+           estimate_nbinom=n_fit$coefficients,
+           se_quasi=sqrt(diag(vcov(qp_fit))),
+           se_nbinom=sqrt(diag(vcov(n_fit))))
+```
+Based on the parameter estimated in the Negative binomial model, being a Pashtun majority province increases the expected number of terror incidence by about 5 (exponentiel of 1.64). An increase of the area by one kilometer square increases the expected number of terror incidence by about 1. An increase of the percentage of the population with access to drinking water by one percent also increases the expected number of terror incidences by about 1. While the positive effects of the first two explanatory variables on the number of terror incidences are somehow expected, the positive effect of the third variable, the access to drinking water, is more surprising. 
+
+```{r}
+exp(n_fit$coefficients[-1])
+```
+With the \theta parameter given in the output of **glm.nb**, we can plot the density of the gamma distribution that characterizes the unobserved random effect. The value of the first, second and third quartile of the distribution are 0.6, 0.9 and 1.3. This implies that the number of terror incidences of a province that falls at the first quartile of this distribution will be 40% lower than the value expected from its characteristics. This number will be 10% lower if the province falls at the second quartile of the distribution and 30% higher if the province falls at the third quartile. Of course, we have no way of knowing which province falls at which quartile, else we could have just included this effect as an explanatory in a Poisson model.
+
+```{r}
+x <- seq(0, 3, 0.01)
+gd <- data.frame(x, g = dgamma(x, shape = n_fit$theta,rate = n_fit$theta))
+ggplot(gd, aes(x, g)) + geom_line(size=1)+
+  geom_vline(xintercept=qgamma(c(0.25,0.5,0.75),shape = n_fit$theta,
+                               rate = n_fit$theta),linetype = "longdash")+
+  labs(x="Unobserved random effect",y="Density")+
+   annotate(geom="text",
+            x=qgamma(c(0.25,0.5,0.75),shape = n_fit$theta,
+                     rate = n_fit$theta)-0.1, y=0, 
+            label=round(qgamma(c(0.25,0.5,0.75),shape = n_fit$theta,
+                                rate = n_fit$theta),1))
+
+```
+
+The true number of terror incidences and the number estimated by the quasi-Poisson and the Negative binomial model are presented in the graph below. In most cases, the two models provide a reasonable estimate of the number of terror incidences. Some exceptions include Khost and Nurestan where the number of terror incidences is largely underestimated and Sar-ePol where it is overestimated.
+
+```{r,warning=FALSE,message=FALSE}
+
+result <- data.frame(province=terr$province,
+                     true=n_fit$model$incidence,
+                     quasi= qp_fit$fitted.values,
+                     nbinom = n_fit$fitted.values
+                     )
+
+
+result <- reshape2::melt(result,idvar=c("province"))
+
+
+ggplot(result,aes(x=reorder(province,value),
+                  y=value,fill=as.factor(variable)))+
+  geom_bar(position="dodge",stat = "identity")+
+  scale_fill_manual(values=c("#999999", "#E69F00", "#56B4E9"),
+    name="",breaks=c("true", "quasi", "nbinom"),
+    labels=c("True value", "Quasi-Poisson estimate", "Negative binomial estimate"))+
+  coord_flip()+
+  labs(title="Terror incidences in Afghanistan : 1994-2008",
+       y="Number of incidences",
+       x="")+
+   theme(legend.position="bottom")
+
+```
+
+## Reference
+* Annette J. Dobson, Adrian G. Barnett (2008). An Introduction to Generalized Linear Models. Chapman & Hall/CRC texts in statistical science series.
+
+* Rodriguez, G. (2007). Lecture Notes on Generalized Linear Models. URL: http://data.princeton.edu/wws509/notes/
